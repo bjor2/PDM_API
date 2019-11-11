@@ -1,0 +1,90 @@
+﻿using System;
+using System.Linq;
+using System.Linq.Dynamic.Core;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using PDM_API.Models;
+
+namespace PDM_API.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    [Authorize(Policy = "Pdm.Member")]
+    [ApiExplorerSettings(GroupName = "internal")]
+    public class StreamAccMonthController : ControllerBase
+    {
+        private PDMContext _db;
+
+        public StreamAccMonthController(PDMContext context)
+        {
+            _db = context;
+        }
+
+        /// <summary>
+        /// StreamAccMonth
+        /// </summary>
+        /// <returns></returns>
+        /// <param name="skip">The amount of records you want to skip</param>
+        /// <param name="top" >The amount of records you want returned (default 1000)</param>
+        /// <param name="columns">Columns to return. Example: Column1,Column2</param>
+        /// <param name="PROD_MONTH">Greater then or equal to. Example: 2019-01-01T00:00:00</param>
+        /// <param name="FACILITY_CODE">Equal to</param>
+        /// <param name="STREAM_CODE">Equal to</param>
+        /// <param name="COMMERCIAL_ENTITY_CODE">Equal to</param>
+        [HttpGet]
+        [ProducesResponseType(typeof(StreamAccMonth), 200)]
+        public async Task<IActionResult> GetStreamAccMonth(int? skip, int? top, string columns, DateTime? PROD_MONTH, string FACILITY_CODE, string STREAM_CODE, string COMMERCIAL_ENTITY_CODE)
+        {
+            int s = (skip == null) ? 0 : skip.GetValueOrDefault();
+            int t = (top == null) ? 1000 : top.GetValueOrDefault();
+ 
+            if (s < 0)
+                return BadRequest("Skip can't be a negative number");
+ 
+            if (t < 1)
+                return BadRequest("Top can't be less then 1");
+
+            if(columns != null)
+                columns = columns.Replace(" ", "");
+
+            /* This section is used to check the existence of columns suplied in the request,
+             * and in the event of no columns being supplied finds a list of each column of the given model.
+             */
+            StreamAccMonth obj = new StreamAccMonth();
+			var cols = obj.GetType().GetProperties().Select(e => e.Name.ToUpper()).ToArray();
+			if (columns == null)
+			{
+				columns = string.Join(",", cols);
+			}
+			else
+			{
+				string[] colSplit = columns.Split(',');
+				foreach (string col in colSplit)
+				{
+					if (!cols.Contains(col.Trim().ToUpper()))
+					{
+						return BadRequest(col + " is not a valid column");
+					}
+				}
+			}
+
+            /* This section takes care of the db request.
+             * Here Linq.Dynamic.Core is used to dynamically select specific columns.
+             */
+            var result = _db.StreamAccMonth
+                .Where(e =>
+                    (e.PROD_MONTH >= PROD_MONTH || PROD_MONTH == null)
+                    && (e.FACILITY_CODE == FACILITY_CODE || FACILITY_CODE == null)
+                    && (e.STREAM_CODE == STREAM_CODE || STREAM_CODE == null)
+                    && (e.COMMERCIAL_ENTITY_CODE == COMMERCIAL_ENTITY_CODE || COMMERCIAL_ENTITY_CODE == null)
+                )
+                .Skip(s)
+                .Take(t)
+				.Select("new(" + columns + ")");
+ 
+            return Ok(await result.ToDynamicListAsync());
+        }
+    }
+}
