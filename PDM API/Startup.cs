@@ -78,6 +78,7 @@ namespace PDM_API
               });
 
             // SQL Connection
+            //Change
             var pdMConnectionString = Configuration.GetConnectionString("pdmDatabase");
 
             if (!String.IsNullOrWhiteSpace(pdMConnectionString))
